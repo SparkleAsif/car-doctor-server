@@ -1,18 +1,3 @@
-const express = require('express');
-const cors = require('cors');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-require('dotenv').config()
-const app = express();
-const port = process.env.PORT || 5000;
-
-// middleware
-app.use(cors());
-app.use(express.json());
-
-
-console.log(process.env.DB_PASS)
-
-
 
 // async function run() {
 //     try {
@@ -33,7 +18,7 @@ console.log(process.env.DB_PASS)
 //             const query = { _id: new ObjectId(id) }
 
 //             const options = {
-//                 // Include only the `title` and `imdb` fields in the returned document
+//                 // Include only the `title` and `img` fields in the returned document
 //                 projection: { title: 1, price: 1, service_id: 1, img: 1 },
 //             };
 
@@ -41,8 +26,7 @@ console.log(process.env.DB_PASS)
 //             res.send(result);
 //         })
 
-
-//         // bookings 
+//         // bookings
 //         app.get('/bookings', async (req, res) => {
 //             console.log(req.query.email);
 //             let query = {};
@@ -81,7 +65,6 @@ console.log(process.env.DB_PASS)
 //             res.send(result);
 //         })
 
-
 //         // Send a ping to confirm a successful connection
 //         await client.db("admin").command({ ping: 1 });
 //         console.log("Pinged your deployment. You successfully connected to MongoDB!");
@@ -92,6 +75,18 @@ console.log(process.env.DB_PASS)
 // }
 // run().catch(console.dir);
 
+const express = require("express");
+const cors = require("cors");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+require("dotenv").config();
+const app = express();
+const port = process.env.PORT || 5000;
+
+// middleware
+app.use(cors());
+app.use(express.json());
+
+console.log(process.env.DB_PASS);
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wmqtp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -101,29 +96,114 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
+    // Connect the client to the server
     await client.connect();
+
+    const serviceCollection = client.db("carDoctor").collection("services");
+    const bookingCollection = client.db("carDoctor").collection("bookings");
+
+    // Get all services
+    app.get("/services", async (req, res) => {
+      try {
+        const cursor = serviceCollection.find();
+        const result = await cursor.toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch services" });
+      }
+    });
+
+    // Get single service by ID
+    app.get("/services/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+
+        const options = {
+          projection: { title: 1, price: 1, service_id: 1, img: 1 },
+        };
+
+        const result = await serviceCollection.findOne(query, options);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch service" });
+      }
+    });
+
+    // Get bookings by email
+    app.get("/bookings", async (req, res) => {
+      try {
+        console.log(req.query.email);
+        let query = {};
+        if (req.query?.email) {
+          query = { email: req.query.email };
+        }
+        const result = await bookingCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch bookings" });
+      }
+    });
+
+    // Post new booking
+    app.post("/bookings", async (req, res) => {
+      try {
+        const booking = req.body;
+        console.log(booking);
+        const result = await bookingCollection.insertOne(booking);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to create booking" });
+      }
+    });
+//update
+    app.patch('/bookings/:id', async (req, res) => {
+                  const id = req.params.id;
+                  const filter = { _id: new ObjectId(id) };
+                  const updatedBooking = req.body;
+                  console.log(updatedBooking);
+                  const updateDoc = {
+                      $set: {
+                          status: updatedBooking.status
+                      },
+                  };
+                  const result = await bookingCollection.updateOne(filter, updateDoc);
+                  res.send(result);
+              })
+
+    // Delete a booking by ID
+    app.delete("/bookings/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };  // Correct usage of ObjectId
+        const result = await bookingCollection.deleteOne(query);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to delete booking" });
+      }
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
+    // Ensure that the client will close when you finish/error
+    //  await client.close();
   }
 }
 run().catch(console.dir);
 
-
-
-app.get('/', (req, res) => {
-    res.send('doctor is running')
-})
+app.get("/", (req, res) => {
+  res.send("doctor is running");
+});
 
 app.listen(port, () => {
-    console.log(`Car Doctor Server is running on port ${port}`)
-})
+  console.log(`Car Doctor Server is running on port ${port}`);
+});
